@@ -78,50 +78,70 @@ def addVisualisationData(mesh, unfoldedMesh, originalHalfedges, unfoldedHalfedge
         # Information, welche Kanten zusammengehören
         glueNumber[unfoldedMesh.edge_handle(unfoldedHalfedges[i]).idx()] = mesh.edge_handle(originalHalfedges[i]).idx()
 
-# Funktion, die einen aufspannenden Baum abwickelt
+# [6] Function to Extract the Minimum Spanning Tree
+# Given a mesh and a spanning tree, this function calculate the unfolded mesh
+# - Funktion, die einen aufspannenden Baum abwickelt
 def unfoldSpanningTree(mesh, spanningTree):
-    unfoldedMesh = om.TriMesh()  # Das abgewickelte Netz
 
+    # [6.0] Create an empty Triangular mesh.
+    unfoldedMesh = om.TriMesh()  # Unfold the Network # Das abgewickelte Netz
+
+    # [6.1] Initialize Variables
     numFaces = mesh.n_faces()
     sizeTree = spanningTree.number_of_edges()
     numUnfoldedEdges = 3 * numFaces - sizeTree
 
+    # [6.2] Create Array indicates the cut edge or folded edges
     isFoldingEdge = np.zeros(numUnfoldedEdges, dtype=bool)  # Gibt an, ob eine Kante gefaltet oder geschnitten wird
+
+    # [6.3] Create Array indicates the glue number of the edge
     glueNumber = np.empty(numUnfoldedEdges, dtype=int)  # Speichert, mit welcher Kante zusammegeklebt wird
+
+    # [6.4] Folded edges - Array indicates that edge is folded or creased
     foldingDirection = np.empty(numUnfoldedEdges, dtype=int)  # Talfaltung oder Bergfaltung
 
+    # [6.5] Triangles connections
     connections = np.empty(numFaces, dtype=int)  # Speichert, welches ursprüngliche Dreieck zum abgewickelten gehört
 
-    # Wähle das erste Dreieck beliebig
+    # [6.6] Start choosing first edge
+    # - Wähle das erste Dreieck beliebig
     startingNode = list(spanningTree.nodes())[0]
     startingTriangle = mesh.face_handle(startingNode)
 
-    # Wir wickeln das erste Dreieck ab
+    # [6.7] Unrolling the first triangle
+    # - Wir wickeln das erste Dreieck ab
 
-    # Alle Halbkanten des ersten Dreiecks
+    # [6.7.1] All half edges of the first triangle
+    # - Alle Halbkanten des ersten Dreiecks
+    # [Use Openmesh HalfEdge Handle to get HalfEdge Data structure]
     firstHalfEdge = mesh.halfedge_handle(startingTriangle)
     secondHalfEdge = mesh.next_halfedge_handle(firstHalfEdge)
     thirdHalfEdge = mesh.next_halfedge_handle(secondHalfEdge)
     originalHalfEdges = [firstHalfEdge, secondHalfEdge, thirdHalfEdge]
 
-    # Berechne die Längen der Kanten, hierdurch wird die Form des Dreiecks bestimmt (Kongruenz)
+    # [6.7.2] Calculate the lengths of the edges, this determines the shape of the triangle (congruence)
+    # - Berechne die Längen der Kanten, hierdurch wird die Form des Dreiecks bestimmt (Kongruenz)
     edgelengths = [mesh.calc_edge_length(firstHalfEdge), mesh.calc_edge_length(secondHalfEdge),
                    mesh.calc_edge_length(thirdHalfEdge)]
 
-    # Die beiden ersten Punkte
+    # [6.8] Now we got first two vertices of the unfolded mesh
+    # - Die beiden ersten Punkte
     firstUnfoldedPoint = np.array([0, 0, 0])
     secondUnfoldedPoint = np.array([edgelengths[0], 0, 0])
 
-    # Wir berechnen den dritten Punkt des Dreiecks aus den ersten beiden. Es gibt zwei möglichkeiten
+    # [6.9] Calculate the third point to be placed in unfolded mesh - Theres two possibilities
+    # - Wir berechnen den dritten Punkt des Dreiecks aus den ersten beiden. Es gibt zwei möglichkeiten
     [thirdUnfolded0, thirdUnfolded1] = getThirdPoint(firstUnfoldedPoint, secondUnfoldedPoint, edgelengths[0],
                                                      edgelengths[1],
                                                      edgelengths[2])
+    # [6.9.1] Use the inside Point as the third point
     if thirdUnfolded0[1] > 0:
         thirdUnfoldedPoint = thirdUnfolded0
     else:
         thirdUnfoldedPoint = thirdUnfolded1
 
-    # Füge die neuen Ecken zum abgewickelten Netz hinzu
+    # [6.10] Add the new vertices to the unfolded mesh
+    # - Füge die neuen Ecken zum abgewickelten Netz hinzu
     # firstUnfoldedVertex = unfoldedMesh.add_vertex(secondUnfoldedPoint)
     # secondUnfoldedVertex = unfoldedMesh.add_vertex(thirdUnfoldedPoint)
     # thirdUnfoldedVertex = unfoldedMesh.add_vertex(firstUnfoldedPoint)
@@ -130,48 +150,64 @@ def unfoldSpanningTree(mesh, spanningTree):
     secondUnfoldedVertex = unfoldedMesh.add_vertex(secondUnfoldedPoint)
     thirdUnfoldedVertex = unfoldedMesh.add_vertex(thirdUnfoldedPoint)
 
+    # [6.11] Create the Page
     # Erzeuge die Seite
     unfoldedFace = unfoldedMesh.add_face(firstUnfoldedVertex, secondUnfoldedVertex, thirdUnfoldedVertex)
 
+    # [6.12] Store Propeties for First UNFOLDED Faces and Edges
     # Speichere Eigenschaften der Fläche und Kanten
     # Die Halbkanten im abgewickelten Gitter
-    firstUnfoldedHalfEdge = unfoldedMesh.next_halfedge_handle(unfoldedMesh.opposite_halfedge_handle(unfoldedMesh.halfedge_handle(firstUnfoldedVertex)))
+    firstUnfoldedHalfEdge = unfoldedMesh.next_halfedge_handle(
+        unfoldedMesh.opposite_halfedge_handle(
+            unfoldedMesh.halfedge_handle(firstUnfoldedVertex)
+    ))
     secondUnfoldedHalfEdge = unfoldedMesh.next_halfedge_handle(firstUnfoldedHalfEdge)
     thirdUnfoldedHalfEdge = unfoldedMesh.next_halfedge_handle(secondUnfoldedHalfEdge)
 
     unfoldedHalfEdges = [firstUnfoldedHalfEdge, secondUnfoldedHalfEdge, thirdUnfoldedHalfEdge]
 
-    # Zugehöriges Dreieck im 3D-Netz
+    # [6.13] # Associated triangle in 3D mesh
+    # - Zugehöriges Dreieck im 3D-Netz
     connections[unfoldedFace.idx()] = startingTriangle.idx()
-    # Faltungsrichtung und Klebenummer
+    # [6.14] Visualize Fold Direction and Glue Number
+    # - Faltungsrichtung und Klebenummer
     addVisualisationData(mesh, unfoldedMesh, originalHalfEdges, unfoldedHalfEdges, glueNumber, foldingDirection)
 
     halfEdgeConnections = {firstHalfEdge.idx(): firstUnfoldedHalfEdge.idx(),
                            secondHalfEdge.idx(): secondUnfoldedHalfEdge.idx(),
                            thirdHalfEdge.idx(): thirdUnfoldedHalfEdge.idx()}
 
+    # [6.15] Now we can start the unfolding process ALL THE TREE
+    # Using Depth First Search Travel on the spanning tree to get the data index
+    # and access actual data from OpenMesh Data's Edge handle
     # Wir gehen durch den Baum
     for dualEdge in nx.dfs_edges(spanningTree, source=startingNode):
         foldingEdge = mesh.edge_handle(spanningTree[dualEdge[0]][dualEdge[1]]['idx'])
+        # [6.15.1] Find the Correspond half edge in the starting triangle
         # Finde die dazugehörige Halbkante im AusgangsDreieck
         foldingHalfEdge = mesh.halfedge_handle(foldingEdge, 0)
         if not (mesh.face_handle(foldingHalfEdge).idx() == dualEdge[0]):
             foldingHalfEdge = mesh.halfedge_handle(foldingEdge, 1)
 
+        # [6.15.2] Find the corresponding unfolded halfedge
         # Finde die dazugehörige abgewickelte Halbkante
         unfoldedLastHalfEdge = unfoldedMesh.halfedge_handle(halfEdgeConnections[foldingHalfEdge.idx()])
 
+        # [6.15.3] # Find the point in the unfolded triangle that is not on the fold line
         # Finde den Punkt im Abgwickelten Dreieck, der nicht auf der Faltkante liegt
         oppositeUnfoldedVertex = unfoldedMesh.to_vertex_handle(unfoldedMesh.next_halfedge_handle(unfoldedLastHalfEdge))
 
+        # [6.15.4] # We turn over the half-edges to lie in the new triangle
         # Wir drehen die Halbkanten um, um im neuen Dreieck zu liegen
         foldingHalfEdge = mesh.opposite_halfedge_handle(foldingHalfEdge)
         unfoldedLastHalfEdge = unfoldedMesh.opposite_halfedge_handle(unfoldedLastHalfEdge)
 
+        # [6.15.5] # The two corners of the folded edge
         # Die beiden Ecken der Faltkante
         unfoldedFromVertex = unfoldedMesh.from_vertex_handle(unfoldedLastHalfEdge)
         unfoldedToVertex = unfoldedMesh.to_vertex_handle(unfoldedLastHalfEdge)
 
+        # [6.15.6] # Calculate the edge lengths in the new triangle
         # Berechne die Kantenlängen im neuen Dreieck
         secondHalfEdgeInFace = mesh.next_halfedge_handle(foldingHalfEdge)
         thirdHalfEdgeInFace = mesh.next_halfedge_handle(secondHalfEdgeInFace)
@@ -181,6 +217,8 @@ def unfoldSpanningTree(mesh, spanningTree):
         edgelengths = [mesh.calc_edge_length(foldingHalfEdge), mesh.calc_edge_length(secondHalfEdgeInFace),
                        mesh.calc_edge_length(thirdHalfEdgeInFace)]
 
+        # [6.15.7] # We calculate the two possibilities for the third point in the triangle
+        # Like [6.9] # [6.9] Calculate the third point to be placed in unfolded mesh - Theres two possibilities
         # Wir berechnen die beiden Möglichkeiten für den dritten Punkt im Dreieck
         [newUnfoldedVertex0, newUnfoldedVertex1] = getThirdPoint(unfoldedMesh.point(unfoldedFromVertex),
                                                                  unfoldedMesh.point(unfoldedToVertex), edgelengths[0],
@@ -196,52 +234,69 @@ def unfoldSpanningTree(mesh, spanningTree):
         thirdUnfoldedHalfEdge = unfoldedMesh.next_halfedge_handle(secondUnfoldedHalfEdge)
         unfoldedHalfEdges = [unfoldedLastHalfEdge, secondUnfoldedHalfEdge, thirdUnfoldedHalfEdge]
 
-        # Speichern der Informationen über Kanten und Seite
-        # Gestrichelte Linie in der Ausgabe
+        # Saving the information about edges and side
+        # Dashed line in the output
+        # - Speichern der Informationen über Kanten und Seite
+        # - Gestrichelte Linie in der Ausgabe
         unfoldedLastEdge = unfoldedMesh.edge_handle(unfoldedLastHalfEdge)
         isFoldingEdge[unfoldedLastEdge.idx()] = True
 
-        # Klebenummer und Faltrichtung
+        # Glue number and folding direction
+        # - Klebenummer und Faltrichtung
         addVisualisationData(mesh, unfoldedMesh, originalHalfEdges, unfoldedHalfEdges, glueNumber, foldingDirection)
 
-        # Zugehörige Seite
+        # Associated page
+        # - Zugehörige Seite
         connections[newface.idx()] = dualEdge[1]
 
-        # Identifiziere die Halbkanten
+        # Identify the half-edges
+        # - Identifiziere die Halbkanten
         for i in range(3):
             halfEdgeConnections[originalHalfEdges[i].idx()] = unfoldedHalfEdges[i].idx()
 
     return [unfoldedMesh, isFoldingEdge, connections, glueNumber, foldingDirection]
 
 def unfold(mesh):
-    # Berechne die Anzahl der Flächen, Kanten und Ecken, sowie die Längen der längsten kürzesten Kante
+    # Mesh = OpenMesh Data read from file
+
+    # [1] Obtain the faces, edges, vertices, max and min edge length.
+    #  - Berechne die Anzahl der Flächen, Kanten und Ecken, sowie die Längen der längsten kürzesten Kante
     numEdges = mesh.n_edges()
     numVertices = mesh.n_vertices()
     numFaces = mesh.n_faces()
 
-    # Erzeuge den dualen Graphen des Netzes und berechne die Gewichte
+    # [2] Create Dual Graph and calculate weights.
+    #  - Erzeuge den dualen Graphen des Netzes und berechne die Gewichte
     dualGraph = nx.Graph()
 
-    # Für die Gewichte: Berechne die längste und kürzeste Kante des Dreiecks
+    # [3] Weights : Find the Longest edge and Shortest edge.
+    #  - Für die Gewichte: Berechne die längste und kürzeste Kante des Dreiecks
     minLength = 1000
     maxLength = 0
     for edge in mesh.edges():
-        edgelength = mesh.calc_edge_length(edge)
+        edgelength = mesh.calc_edge_length(edge) # OpenMesh : Get Edge Length
         if edgelength < minLength:
             minLength = edgelength
         if edgelength > maxLength:
             maxLength = edgelength
 
-    # Alle Kanten im Netz
+    # [4] Iterate through the edges and create the dual graph.
+    # - Alle Kanten im Netz
+    # [4.1] Samping an edge
     for edge in mesh.edges():
-        # Die beiden Seiten, die an die Kante angrenzebn
+
+        # [4.2] Get the two adjacent faces of this edge
+        # This will be the NODE (represent the faces) in DUAL GRAPH
+        # - Die beiden Seiten, die an die Kante angrenzebn
         face1 = mesh.face_handle(mesh.halfedge_handle(edge, 0))
         face2 = mesh.face_handle(mesh.halfedge_handle(edge, 1))
 
-        # Das Gewicht
+        # [4.3] Dual Graph Creation - Weight Function of the EDGE
+        # - Das Gewicht
         edgeweight = 1.0 - (mesh.calc_edge_length(edge) - minLength) / (maxLength - minLength)
 
-        # Berechne die Mittelpunkte der Seiten (nur für die Visualisierung notwendig)
+        # [4.4] Calculate the center of the edge (for the visualization purposes only)
+        # - Berechne die Mittelpunkte der Seiten (nur für die Visualisierung notwendig)
         center1 = (0, 0)
         for vertex in mesh.fv(face1):
             center1 = center1 + 0.3333333333333333 * np.array([mesh.point(vertex)[0], mesh.point(vertex)[2]])
@@ -249,16 +304,18 @@ def unfold(mesh):
         for vertex in mesh.fv(face2):
             center2 = center2 + 0.3333333333333333 * np.array([mesh.point(vertex)[0], mesh.point(vertex)[2]])
 
-        # Füge die neuen Knoten und Kante zum dualen Graph hinzu
+        # [4.5] Add the EDGE and "TWO NODES" to the dual graph
+        # - Füge die neuen Knoten und Kante zum dualen Graph hinzu
         dualGraph.add_node(face1.idx(), pos=center1)
         dualGraph.add_node(face2.idx(), pos=center2)
         dualGraph.add_edge(face1.idx(), face2.idx(), idx=edge.idx(), weight=edgeweight)
 
-    # Berechne den minimalen aufspannenden Baum
+    # [5] Calculate for Minimum Spanning Tree
+    # - Berechne den minimalen aufspannenden Baum
     spanningTree = nx.minimum_spanning_tree(dualGraph)
 
-    #Unfold the tree
-
+    # [6] UNFOLD THE TREE HERE :)
+    # - Unfold the tree
     fullUnfolding = unfoldSpanningTree(mesh, spanningTree)
     [unfoldedMesh, isFoldingEdge, connections, glueNumber, foldingDirection] = fullUnfolding
 
@@ -269,7 +326,7 @@ def unfold(mesh):
     faceIntersections = []
     for face1 in unfoldedMesh.faces():
         for face2 in unfoldedMesh.faces():
-            if face2.idx() < face1.idx():  # Damit wir die Paare nicht doppelt durchgehen
+            if face2.idx() < face1.idx():  # Prevent access 1-2, 2-1 = twice - Damit wir die Paare nicht doppelt durchgehen
                 # Get the triangle faces
                 triangle1 = []
                 triangle2 = []

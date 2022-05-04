@@ -6,7 +6,7 @@ from argparse import ArgumentParser
 
 def main():
     parser = ArgumentParser()
-    parser.add_argument("-f", "--file", dest="filename", default="models/icosahedron.obj",
+    parser.add_argument("-f", "--file", dest="filename", default="models/bunnyReduced.obj",
                         help="path to the model", metavar="FILE")
     parser.add_argument("-n", "--numbers",
                         action="store_true", dest="printNumbers", default=False,
