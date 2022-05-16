@@ -90,7 +90,9 @@ def unfoldSpanningTree(mesh, spanningTree):
     numFaces = mesh.n_faces()
     sizeTree = spanningTree.number_of_edges()
     numUnfoldedEdges = 3 * numFaces - sizeTree
-
+    print("numFaces",numFaces)
+    print("sizeTree",sizeTree)
+    print("numUnfoldedEdges",numUnfoldedEdges)
     # [6.2] Create Array indicates the cut edge or folded edges
     isFoldingEdge = np.zeros(numUnfoldedEdges, dtype=bool)  # Gibt an, ob eine Kante gefaltet oder geschnitten wird
 
@@ -319,7 +321,7 @@ def unfold(mesh):
     fullUnfolding = unfoldSpanningTree(mesh, spanningTree)
     [unfoldedMesh, isFoldingEdge, connections, glueNumber, foldingDirection] = fullUnfolding
 
-
+    print(connections)
     # Resolve the intersections
     # Find all intersections
     epsilon = 1E-12  # Genauigkeit
